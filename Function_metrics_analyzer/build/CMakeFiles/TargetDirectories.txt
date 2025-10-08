@@ -1,0 +1,11 @@
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/intrinsics_gen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/vt_gen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/omp_gen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/acc_gen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/ARMTargetParserTableGen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/AArch64TargetParserTableGen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/RISCVTargetParserTableGen.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/clang-tablegen-targets.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/function_metrics.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/edit_cache.dir
+/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build/CMakeFiles/rebuild_cache.dir
