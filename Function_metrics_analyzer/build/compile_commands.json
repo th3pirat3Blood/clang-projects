@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/build",
-  "command": "/usr/bin/c++ -I/usr/lib/llvm-20/include   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -o CMakeFiles/function_metrics.dir/src/main.cpp.o -c /home/ashish/tool-development/clang-projects/Function_metrics_analyzer/src/main.cpp",
-  "file": "/home/ashish/tool-development/clang-projects/Function_metrics_analyzer/src/main.cpp",
-  "output": "CMakeFiles/function_metrics.dir/src/main.cpp.o"
-}
-]
