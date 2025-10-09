@@ -22,15 +22,14 @@ mkdir -p build && cd build
 If using **Ninja** then:
 
 ```bash
-cmake ../ -G Ninja && ninja 
+cmake ../ -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && ninja 
 ```
 
 If using **make** then:
 
 ```bash
-cmake ../ -G "Unix Makefiles" && make 
+cmake ../ -G "Unix Makefiles" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && make 
 ```
-
 
 ## Usage
 
@@ -49,8 +48,15 @@ Once the tool is built then use the following command to run it over a C++ sourc
 Expected Output:
 
 ```bash
+Function : bar
+Lines of code : 4
+Parameter count : 0
+Location : clang-projects/Function_metrics_analyzer/build/../test/sample1.cpp:7
 
-
+Function : main
+Lines of code : 4
+Parameter count : 0
+Location : clang-projects/Function_metrics_analyzer/build/../test/sample1.cpp:13
 ```
 
  
