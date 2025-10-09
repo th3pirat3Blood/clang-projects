@@ -18,18 +18,31 @@
 class FunctionMetricsCallback : public clang::ast_matchers::MatchFinder::MatchCallback {
 	public:
 		void run(const clang::ast_matchers::MatchFinder::MatchResult &result) {
-			if (const clang::FunctionDecl *FD = result.Nodes.getNodeAs<clang::FunctionDecl>("func")) {
-				// If the match found is just a function defintion then just return 
-				if (!FD->hasBody())
-					return;
 
+			if (const clang::FunctionDecl *FD = result.Nodes.getNodeAs<clang::FunctionDecl>("declaration")) {
+				// If its definition then ignore it 
+				if (FD->hasBody())
+					return;
 				const clang::SourceManager &SM = *result.SourceManager;
+				llvm::outs() << "Function definition found for: " << FD->getNameAsString() << "() with " \
+							 << FD->getNumParams() << " parameters at: " << SM.getFilename(FD->getLocation()) \
+							 << ":" << SM.getSpellingLineNumber(FD->getLocation()) << "\n\n";
+			}
+
+			if (const clang::FunctionDecl *FD = result.Nodes.getNodeAs<clang::FunctionDecl>("definition")) {
+				const clang::SourceManager &SM = *result.SourceManager;
+
+				// If the match found is just a function defintion then just return 
+				if (!FD->hasBody()) {
+					return;
+				}
+					
 				clang::SourceLocation startLoc = FD->getBody()->getBeginLoc();
 				clang::SourceLocation endLoc = FD->getBody()->getEndLoc();
 				unsigned start_line_number = SM.getSpellingLineNumber(startLoc);
 				unsigned end_line_number = SM.getSpellingLineNumber(endLoc);
 				
-				llvm::outs() << "Function : " << FD->getNameAsString() << "\n";
+				llvm::outs() << "Function : " << FD->getNameAsString() << "()\n";
 				llvm::outs() << "Lines of code : " << (end_line_number - start_line_number) << "\n";
 				llvm::outs() << "Parameter count : " << FD->getNumParams() << "\n";
 				llvm::outs() << "Location : " << SM.getFilename(FD->getLocation()) << ":" \
@@ -51,9 +64,9 @@ int main(int argc, const char **argv) {
 	FunctionMetricsCallback callback;
 	clang::ast_matchers::MatchFinder finder;
 
-	finder.addMatcher(clang::ast_matchers::functionDecl(clang::ast_matchers::isDefinition()).bind("func"), &callback);
+	finder.addMatcher(clang::ast_matchers::functionDecl(clang::ast_matchers::isDefinition()).bind("definition"), &callback);
+	finder.addMatcher(clang::ast_matchers::functionDecl().bind("declaration"), &callback);
 
 	return Tool.run(clang::tooling::newFrontendActionFactory(&finder).get());
-
 }
 
