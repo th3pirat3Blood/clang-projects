@@ -12,6 +12,7 @@
  */ 
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/SourceLocation.h"
@@ -34,7 +35,7 @@ class RegexExpressions {
 			return std::regex_match(name, std::regex("^[a-z][a-zA-Z0-9]*$"));
 		}
 		bool isPascalCase(const std::string name) {
-			return std::regex_match(name, std::regex("^[A-Z][a-zA-Z0-0]*$"));
+			return std::regex_match(name, std::regex("^[A-Z][a-zA-Z0-9]*$"));
 		}
 		bool isUpperCase(const std::string name) {
 			return std::regex_match(name, std::regex("^[A-Z0-9_]*$"));
@@ -43,9 +44,9 @@ class RegexExpressions {
 
 class NamingConventionCheckerCallback : public clang::ast_matchers::MatchFinder::MatchCallback {
 	private:
-		void report(std::string type, const std::string name, const clang::SourceManager &SM, clang::SourceLocation location) {
-			llvm::outs() << type << " named \"" << name << "\" type at: " \
-			   			 <<	SM.getSpellingLineNumber(location) << "\n";
+		void report(std::string type, const std::string name, const clang::SourceManager &SM, clang::SourceLocation location, std::string expected) {
+			llvm::outs() << type << " named \"" << name << "\" at line " \
+			   			 <<	SM.getSpellingLineNumber(location) << " should be in " << expected << "\n";
 		}
 
 	public:
@@ -54,14 +55,28 @@ class NamingConventionCheckerCallback : public clang::ast_matchers::MatchFinder:
 			RegexExpressions RE_obj;
 			// Search for VarDecls 
 			if (const clang::VarDecl *VD = result.Nodes.getNodeAs<clang::VarDecl>("vardecl")) {
+				// Check if VarDecl is a constant value or is constqualified
+				if ( (VD->isConstexpr() || VD->getType().isConstQualified()) && VD->isFileVarDecl()) {
+					if (!RE_obj.isUpperCase(VD->getNameAsString()))
+						report("Constant", VD->getQualifiedNameAsString(), SM, VD->getLocation(), "UPPER_CASE");
+					return;
+				}
+	
+
 				if (!RE_obj.isCamelCase(VD->getNameAsString()))
-					report("Variable", VD->getNameAsString() , SM, VD->getLocation());
+					report("Variable", VD->getNameAsString() , SM, VD->getLocation(), "camelCase");
 			}
 
 			// For Functions 
 			if (const clang::FunctionDecl *FD = result.Nodes.getNodeAs<clang::FunctionDecl>("functions")) {
-				if ( (FD->getNameAsString() != "main") && !RE_obj.isPascalCase(FD->getNameAsString()) )
-					report("Function", FD->getNameAsString(), SM, FD->getLocation());
+				if ( (FD->getNameAsString() != "main") && !RE_obj.isCamelCase(FD->getNameAsString()) )
+					report("Function", FD->getNameAsString(), SM, FD->getLocation(), "camelCase");
+			}
+
+			// For CXX classes 
+			if (const clang::CXXRecordDecl *CRD = result.Nodes.getNodeAs<clang::CXXRecordDecl>("classes")) {
+				if ( !RE_obj.isPascalCase(CRD->getNameAsString()))
+					report("class", CRD->getNameAsString(), SM, CRD->getLocation(), "PascalCase");
 			}
 
 			// For Constants
@@ -88,7 +103,8 @@ int main(int argc, const char **argv) {
 
 	finder.addMatcher(clang::ast_matchers::varDecl(clang::ast_matchers::isExpansionInMainFile()).bind("vardecl"), &callback);
 	finder.addMatcher(clang::ast_matchers::functionDecl(clang::ast_matchers::isExpansionInMainFile()).bind("functions"), &callback);
-	finder.addMatcher(clang::ast_matchers::constantExpr(clang::ast_matchers::isExpansionInMainFile()).bind("constant"), &callback);
+	finder.addMatcher(clang::ast_matchers::cxxRecordDecl(clang::ast_matchers::isExpansionInMainFile()).bind("classes"), &callback);
+//	finder.addMatcher(clang::ast_matchers::constantExpr(clang::ast_matchers::isExpansionInMainFile()).bind("constant"), &callback);
 	return tool.run(clang::tooling::newFrontendActionFactory(&finder).get());
 }
 
