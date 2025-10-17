@@ -7,10 +7,8 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
-#include "clang/Basic/DiagnosticCategories.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Basic/TokenKinds.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/Preprocessor.h"
@@ -21,10 +19,13 @@
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 
+#include <llvm-20/llvm/ADT/StringRef.h>
 #include <llvm-20/llvm/Support/Error.h>
+#include <llvm-20/llvm/Support/Path.h>
 #include <llvm-20/llvm/Support/raw_ostream.h>
 #include <llvm/Support/CommandLine.h>
 #include <memory>
+#include <string>
 #include <vector>
 
 // ============================== CommandLine Optinos ======================================
@@ -44,27 +45,53 @@ static llvm::cl::opt<bool> ShowCommentsInfo("info-c", llvm::cl::desc("Displays j
 // ============================== Callbacks ======================================
 
 class FunctionCallback : public clang::ast_matchers::MatchFinder::MatchCallback {
+	private:
+		std::vector<std::string> &location_details;
 	public:
+		FunctionCallback(std::vector<std::string> &ld) : location_details(ld) {}
+
 		void run(const clang::ast_matchers::MatchFinder::MatchResult &result) override {
 			clang::SourceManager *SM = result.SourceManager;
 			if (const clang::FunctionDecl *FD = result.Nodes.getNodeAs<clang::FunctionDecl>("function")) {
 				// If function is declared/defined in the current file and not any  header, then print info on it 
 				clang::SourceLocation location = FD->getLocation();
-				if (SM->isWrittenInMainFile(location))
-					llvm::outs() << FD->getNameAsString() << "() :" << location.printToString(*SM)<< "\n";	
+				if (!SM->isWrittenInMainFile(location))
+			 		return;
+
+				unsigned line_number = SM->getSpellingLineNumber(location);
+				unsigned col_number = SM->getSpellingColumnNumber(location);
+				std::string location_string = (FD->getNameAsString() + "() found in " + 
+											llvm::sys::path::filename(SM->getFilename(location)) +
+											" at line " + std::to_string(line_number) + ":" + std::to_string(col_number)).str();
+				location_details.push_back(location_string);
 			}
+		}
+
+		std::vector<std::string> getLocationDetails() {
+			return location_details;
 		}
 };
 
 class VariableCallback : public clang::ast_matchers::MatchFinder::MatchCallback {
+	private:
+		std::vector<std::string> &location_details;
 	public:
+		VariableCallback(std::vector<std::string> &ld) : location_details(ld) {}
+
 		void run(const clang::ast_matchers::MatchFinder::MatchResult &result) override {
 			clang::SourceManager *SM = result.SourceManager;
 			if (const clang::VarDecl *VD = result.Nodes.getNodeAs<clang::VarDecl>("variable")) {
 				// If variable is declared in the file being processed and not in any other included file, then print info on it
 				clang::SourceLocation location = VD->getLocation();
-				if (SM->isWrittenInMainFile(location))
-					llvm::outs() << "Variable " << VD->getNameAsString() << " declared at " << location.printToString(*SM) << "\n";
+				if (!SM->isWrittenInMainFile(location))
+					return;
+				
+				unsigned line_number = SM->getSpellingLineNumber(location);
+				unsigned col_number = SM->getSpellingColumnNumber(location);
+				std::string location_string = ("Variable \"" + VD->getNameAsString() + "\" declared at " +
+											llvm::sys::path::filename(SM->getFilename(location)) + 
+											"at line" + std::to_string(line_number) + ":" + std::to_string(col_number)).str();
+				location_details.push_back(location_string);
 			}
 		}
 };
@@ -95,7 +122,11 @@ class CommentHandler : public clang::CommentHandler {
 			unsigned end_line = SM->getSpellingLineNumber(end);
 			
 			total_comment_lines = total_comment_lines + end_line - start_line + 1;
-			comment_locations.push_back(start.printToString(*SM) + " - " + end.printToString(*SM));
+
+			llvm::StringRef filename = llvm::sys::path::filename(SM->getFilename(start));
+			std::string file_position = (filename + ":" + std::to_string(start_line) + "-" + std::to_string(end_line)).str();
+			comment_locations.push_back(file_position);
+			
 
 			return false;
 		}
@@ -119,7 +150,10 @@ class SCIG_Consumer : public clang::ASTConsumer {
 		VariableCallback v_callback;
 
 	public:
-		SCIG_Consumer(bool showfunctionsinfo, bool showvariablesinfo) {
+		SCIG_Consumer(bool showfunctionsinfo, bool showvariablesinfo, 
+						std::vector<std::string> &func_location_details,
+					   	std::vector<std::string> &var_location_details
+					 ) : f_callback(func_location_details),v_callback(var_location_details) {
 			if (showfunctionsinfo)
 				matcher.addMatcher(clang::ast_matchers::functionDecl(clang::ast_matchers::isDefinition()).bind("function"), &f_callback);
 			
@@ -130,6 +164,7 @@ class SCIG_Consumer : public clang::ASTConsumer {
 		void HandleTranslationUnit(clang::ASTContext &context) override {
 			matcher.matchAST(context);
 		}
+
 };
 
 
@@ -139,6 +174,10 @@ class SCIG_FrontendAction : public clang::ASTFrontendAction {
 	private:
 		CommentHandler commenthandler_obj;
 		bool showcommentsinfo = false;
+		bool showfunctionsinfo = false;
+		bool showvariablesinfo = false;
+		std::vector<std::string> function_location_details;
+		std::vector<std::string> variable_location_details;
 
 	public:
 		void ExecuteAction() override {
@@ -157,20 +196,36 @@ class SCIG_FrontendAction : public clang::ASTFrontendAction {
 		}
 
 		void EndSourceFileAction() override {
-			if (!showcommentsinfo)
-				return;
-			llvm::outs() << "\nTotal line of comments: " << commenthandler_obj.getTotalComments() << "\n";
-			llvm::outs() << "Comments found at following locations: \n";	
-			for (auto v : commenthandler_obj.getCommentLocations())
-				llvm::outs() << v << "\n";
+			if (showfunctionsinfo) {
+				llvm::outs() << "============\n";
+				llvm::outs() << "Functions\n";
+				llvm::outs() << "============\n";
+				for (auto v: function_location_details)
+					llvm::outs() << v << "\n";
+			}
+
+			if (showvariablesinfo) {
+				llvm::outs() << "============\n";
+				llvm::outs() << "Variables\n";
+				llvm::outs() << "============\n";
+				for (auto v: variable_location_details)
+					llvm::outs() << v << "\n";
+			}
+
+			if (showcommentsinfo) {
+				llvm::outs() << "Total line of comments: " << commenthandler_obj.getTotalComments() << "\n";
+				llvm::outs() << "Comments found at following locations: \n";	
+				for (auto v : commenthandler_obj.getCommentLocations())
+					llvm::outs() << v << "\n";
+			}
 		}
 
 		std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef InFile) override {
 
-			bool showfunctionsinfo = ShowFunctionsInfo || (!ShowFunctionsInfo && !ShowVariablesInfo && !ShowCommentsInfo);
-			bool showvariablesinfo = ShowVariablesInfo || (!ShowVariablesInfo && !ShowFunctionsInfo && !ShowCommentsInfo);
+			showfunctionsinfo = ShowFunctionsInfo || (!ShowFunctionsInfo && !ShowVariablesInfo && !ShowCommentsInfo);
+			showvariablesinfo = ShowVariablesInfo || (!ShowVariablesInfo && !ShowFunctionsInfo && !ShowCommentsInfo);
 
-			return std::make_unique<SCIG_Consumer>(showfunctionsinfo, showvariablesinfo); 
+			return std::make_unique<SCIG_Consumer>(showfunctionsinfo, showvariablesinfo, function_location_details, variable_location_details); 
 		}	
 };
 
