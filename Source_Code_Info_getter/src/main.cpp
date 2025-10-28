@@ -6,6 +6,7 @@
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -154,11 +155,21 @@ class SCIG_Consumer : public clang::ASTConsumer {
 						std::vector<std::string> &func_location_details,
 					   	std::vector<std::string> &var_location_details
 					 ) : f_callback(func_location_details),v_callback(var_location_details) {
-			if (showfunctionsinfo)
-				matcher.addMatcher(clang::ast_matchers::functionDecl(clang::ast_matchers::isDefinition()).bind("function"), &f_callback);
-			
-			if (showvariablesinfo)
-				matcher.addMatcher(clang::ast_matchers::varDecl().bind("variable"), &v_callback);
+			if (showfunctionsinfo) {
+				matcher.addMatcher(clang::ast_matchers::traverse(clang::TK_IgnoreUnlessSpelledInSource,
+									clang::ast_matchers::functionDecl(
+										clang::ast_matchers::isDefinition()
+								  		)
+									).bind("function"), &f_callback);
+			}
+			if (showvariablesinfo) {
+				matcher.addMatcher(clang::ast_matchers::traverse(
+										clang::TK_IgnoreUnlessSpelledInSource, 
+											clang::ast_matchers::varDecl()
+									).bind("variable"), &v_callback);
+//				matcher.addMatcher(clang::ast_matchers::varDecl().bind("variable"), &v_callback);
+		
+			}
 		}
 
 		void HandleTranslationUnit(clang::ASTContext &context) override {
@@ -213,6 +224,9 @@ class SCIG_FrontendAction : public clang::ASTFrontendAction {
 			}
 
 			if (showcommentsinfo) {
+				llvm::outs() << "=============\n";
+				llvm::outs() << "Comments\n";
+				llvm::outs() << "=============\n";
 				llvm::outs() << "Total line of comments: " << commenthandler_obj.getTotalComments() << "\n";
 				llvm::outs() << "Comments found at following locations: \n";	
 				for (auto v : commenthandler_obj.getCommentLocations())
