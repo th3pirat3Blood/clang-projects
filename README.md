@@ -6,7 +6,16 @@ This repo contains tools developed using clang's libtooling
 
 ### [Function Metrics Analyzer](Function_metrics_analyzer) 
 
-A tool that runs on C++ source code and gives details including name, location, line of code, parameter count etc about the user defined functions in the given source code
+Function Metrics Analyzer is a static analysis tool built using Clang LibTooling that extracts function-level code metrics from C/C++ source files.
+Its goal is to:
++ Analyze source code without executing it
++ Collect structural metrics for each function
++ Provide insights useful for:
+  + Code quality assessment
+  + Complexity estimation
+  + Refactoring decisions
+  + API analysis
+    
 
 ### [Function Log Injector](Function_log_injector) 
 
